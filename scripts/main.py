@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from util import backtest_minute, perf_summary
 from plot import spot_perpetual_trend
+from time_series_cv import train_and_eval, refit_and_test
 
 def mean_reversion_signal(
     close: pd.Series, window: int = 50, z_thr: float = 2.0, exit_value: float = -0.5
@@ -44,6 +45,16 @@ def compare_perp_spot():
     df_perp = pd.read_parquet("data/processed/BTCUSDT-perp-1min-year-to-date.parquet").set_index("timestamp")
     spot_perpetual_trend(df_spot=df_spot.loc["2025-05-01"], df_perp=df_perp.loc["2025-05-01"])
 
+def cv_model_fit():
+    df_train = pd.read_parquet("data/processed/BTCUSDT-spot-1min-22-24.parquet").set_index("timestamp")
+    df_test = pd.read_parquet("data/processed/BTCUSDT-1min-year-to-date.parquet").set_index("timestamp")
+    mean_sharpe, fold, model, feat_cols = train_and_eval(df_train=df_train)
+    print("Results from CV:")
+    print(f"Mean Sharpe: {mean_sharpe}")
+    print(f"Fold data: {fold}")
+    print(refit_and_test(df_train=df_train, df_test=df_test, feat_cols=feat_cols, model=model)[0])
+
 if __name__ == "__main__":
-    mean_reversion()
+    # mean_reversion()
+    cv_model_fit()
     # compare_perp_spot()

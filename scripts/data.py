@@ -71,7 +71,6 @@ def download_data():
     # full_df.rename(columns={"open_time": "timestamp"}, inplace=True)
     # Convert timestamp column to readable format (microsecond -> us, milliseconds -> ms)
     full_df["timestamp"] = pd.to_datetime(full_df["timestamp"], unit="ms")
-    # full_df = full_df.sort_values("timestamp")
 
     # Keep only main columns for trading
     full_df = full_df[["timestamp", "open", "high", "low", "close", "volume"]]
