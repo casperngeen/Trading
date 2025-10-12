@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 from util import backtest_minute, perf_summary
 from plot import spot_perpetual_trend
 from time_series_cv import train_and_eval, refit_and_test
+from load_data import loadParquetAsDataframe, alignData
+from generate_features import generate_features, Feature
+from feature_selection import correlation
+from pathlib import Path
 
 def mean_reversion_signal(
     close: pd.Series, window: int = 50, z_thr: float = 2.0, exit_value: float = -0.5
@@ -45,16 +49,30 @@ def compare_perp_spot():
     df_perp = pd.read_parquet("data/processed/BTCUSDT-perp-1min-year-to-date.parquet").set_index("timestamp")
     spot_perpetual_trend(df_spot=df_spot.loc["2025-05-01"], df_perp=df_perp.loc["2025-05-01"])
 
-def cv_model_fit():
-    df_train = pd.read_parquet("data/processed/BTCUSDT-spot-1min-22-24.parquet").set_index("timestamp")
-    df_test = pd.read_parquet("data/processed/BTCUSDT-1min-year-to-date.parquet").set_index("timestamp")
-    mean_sharpe, fold, model, feat_cols = train_and_eval(df_train=df_train)
-    print("Results from CV:")
-    print(f"Mean Sharpe: {mean_sharpe}")
-    print(f"Fold data: {fold}")
-    print(refit_and_test(df_train=df_train, df_test=df_test, feat_cols=feat_cols, model=model)[0])
+def prediction_model():
+    # Load Data
+    perp = loadParquetAsDataframe(Path("data/processed/futures/BTCUSDT"))
+    spot = loadParquetAsDataframe()
+    perp, spot = alignData(perp, spot)
+    
+    # Feature Engineering & Selection
+    featureValues = list(Feature)
+    # we use 100 as window size as an arbitrary gauge
+    featureDf = generate_features(featureValues, perp, spot, 100, 100, 100, 100)
+    correlatedPairs = correlation(featureDf, 0.2)
+    print(correlatedPairs)
+    '''
+    Upon inspection, we can see that the correlation of basis and spread is high, 
+    which is due to the fact that beta is 1 -> basis and spread are linearly related
+    We can also observe that the diff and acc is highly correlated, 
+    and we will drop basis_z_diff since it has a higher correlation with basis_z
+    '''
+    # TODO: think about how to automatically select features based on correlation
+    selectedFeatures = [Feature.BASIS_Z, Feature.BASIS_Z_ACC, Feature.VOLATILITY_RATIO, Feature.VOLUME_RATIO, Feature.OFI_Z_RATIO, Feature.OFI_Z_DIFF_RATIO, Feature.OFI_Z_ACC_RATIO]
+    
+
 
 if __name__ == "__main__":
     # mean_reversion()
-    cv_model_fit()
+    prediction_model()
     # compare_perp_spot()

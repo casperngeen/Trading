@@ -17,6 +17,8 @@ def downloadKlines(
         product = "spot",
         productUrl = "spot",
         dates=None):
+    
+    # standard format for binance kline data
     COLS = [
         "open_time", "open", "high", "low", "close", "volume",
         "close_time", "quote_volume", "trades",
@@ -95,6 +97,12 @@ def loadParquetAsDataframe(base: Path = Path("data/processed/spot/BTCUSDT"),
     
     combined_df = pd.concat(dfs).set_index("open_time")
     return combined_df
+
+def alignData(perp: pd.DataFrame, spot: pd.DataFrame):
+    mask = perp["close"].notna() & spot["close"].notna()
+    perp = perp.loc[mask]
+    spot = spot.loc[mask]
+    return perp, spot
 
 '''
 NOT USED for now
