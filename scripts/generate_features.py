@@ -15,6 +15,10 @@ class Feature(Enum):
     OFI_Z_RATIO = "ofi_z_ratio"
     OFI_Z_DIFF_RATIO = "ofi_z_diff_ratio"
     OFI_Z_ACC_RATIO = "ofi_z_acc_ratio"
+    SPREAD = "spread"
+    SPREAD_Z = "spread_z"
+    SPREAD_Z_DIFF = "spread_z_diff"
+    SPREAD_Z_ACC = "spread_z_acc"
 
 '''
 Feature Engineering Orchestration:
