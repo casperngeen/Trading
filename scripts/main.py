@@ -1,12 +1,13 @@
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 from util import backtest_minute, perf_summary
 from plot import spot_perpetual_trend
-from time_series_cv import train_and_eval, refit_and_test
 from load_data import loadParquetAsDataframe, alignData
 from generate_features import generate_features, Feature
 from feature_selection import correlation
 from pathlib import Path
+from btc_spot_perp import hyperparamTuning
 
 def mean_reversion_signal(
     close: pd.Series, window: int = 50, z_thr: float = 2.0, exit_value: float = -0.5
@@ -49,7 +50,7 @@ def compare_perp_spot():
     df_perp = pd.read_parquet("data/processed/BTCUSDT-perp-1min-year-to-date.parquet").set_index("timestamp")
     spot_perpetual_trend(df_spot=df_spot.loc["2025-05-01"], df_perp=df_perp.loc["2025-05-01"])
 
-def prediction_model():
+def btc_spot_perp_model():
     # Load Data
     perp = loadParquetAsDataframe(Path("data/processed/futures/BTCUSDT"))
     spot = loadParquetAsDataframe()
@@ -58,7 +59,7 @@ def prediction_model():
     # Feature Engineering & Selection
     featureValues = list(Feature)
     # we use 100 as window size as an arbitrary gauge
-    featureDf = generate_features(featureValues, perp, spot, 100, 100, 100, 100)
+    featureDf = generate_features(featureValues, perp, spot, 100, 100, 100, 100, 30)
     correlatedPairs = correlation(featureDf, 0.2)
     print(correlatedPairs)
     '''
@@ -68,11 +69,19 @@ def prediction_model():
     and we will drop basis_z_diff since it has a higher correlation with basis_z
     '''
     # TODO: think about how to automatically select features based on correlation
-    selectedFeatures = [Feature.BASIS_Z, Feature.BASIS_Z_ACC, Feature.VOLATILITY_RATIO, Feature.VOLUME_RATIO, Feature.OFI_Z_RATIO, Feature.OFI_Z_DIFF_RATIO, Feature.OFI_Z_ACC_RATIO]
+    selectedFeatures = [Feature.BASIS_Z, Feature.BASIS_Z_ACC, Feature.VOLATILITY_RATIO, 
+                        Feature.VOLUME_RATIO, Feature.OFI_Z_RATIO, Feature.OFI_Z_DIFF_RATIO, 
+                        Feature.OFI_Z_ACC_RATIO]
     
+    # Hyperparamter Tuning
+    study = hyperparamTuning(selectedFeatures, perp, spot)
+    print("Best Sharpe:", study.best_value)
+    print("Best parameters:", study.best_params)
+    print("Best trial number:", study.best_trial.number)
+    study.trials_dataframe().to_csv("optuna_results.csv")
 
 
 if __name__ == "__main__":
     # mean_reversion()
-    prediction_model()
+    btc_spot_perp_model()
     # compare_perp_spot()

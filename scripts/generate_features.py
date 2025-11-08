@@ -19,21 +19,24 @@ class Feature(Enum):
     SPREAD_Z = "spread_z"
     SPREAD_Z_DIFF = "spread_z_diff"
     SPREAD_Z_ACC = "spread_z_acc"
+    RETURNS = "returns"
 
 '''
 Feature Engineering Orchestration:
 Takes in a list of features to be generated, with relevant window frames 
 '''
 def generate_features(columns: List[Feature], perp: pd.DataFrame, spot: pd.DataFrame, 
-                      basis_window: int, vol_window: int, ofi_window: int, coint_window: int):
+                      basis_window: int, vol_window: int, ofi_window: int, coint_window: int,
+                      horizon: int):
     featureDf = pd.DataFrame()
     featureDf = generate_basis_features(columns, featureDf, perp, spot, basis_window)
     featureDf = generate_volatility_features(columns, featureDf, perp, spot, vol_window)
     featureDf = generate_volume_features(columns, featureDf, perp, spot)
     featureDf = generate_order_flow_features(columns, featureDf, perp, spot, ofi_window)
     featureDf = generate_cointegration_features(columns, featureDf, perp, spot, coint_window)
+    featureDf = generate_returns(featureDf, perp, spot, horizon)
+    featureDf = featureDf.dropna()
     return featureDf
-    
 
 '''
 Basis is measure of the spread of perp and spot prices (relative to spot)
@@ -50,11 +53,11 @@ def generate_basis_features(columns: List[Feature], featureDf: pd.DataFrame, per
     basis_z_acc = basis_z_diff.diff()
 
     if Feature.BASIS_Z in columns:
-        featureDf[Feature.BASIS_Z.value] = basis_z
+        featureDf[Feature.BASIS_Z] = basis_z
     if Feature.BASIS_Z_DIFF in columns:
-        featureDf[Feature.BASIS_Z_DIFF.value] = basis_z_diff
+        featureDf[Feature.BASIS_Z_DIFF] = basis_z_diff
     if Feature.BASIS_Z_ACC in columns:
-        featureDf[Feature.BASIS_Z_ACC.value] = basis_z_acc
+        featureDf[Feature.BASIS_Z_ACC] = basis_z_acc
 
     return featureDf
 
@@ -68,7 +71,7 @@ def generate_volatility_features(columns: List[Feature], featureDf: pd.DataFrame
         spot_change = spot["close"].pct_change()
         
         # default value of ddof is 1 -> unbiased estimate of std
-        featureDf[Feature.VOLATILITY_RATIO.value] = (
+        featureDf[Feature.VOLATILITY_RATIO] = (
             perp_change.rolling(window).std()
             / (spot_change.rolling(window).std() + 1e-8)
         )
@@ -76,7 +79,7 @@ def generate_volatility_features(columns: List[Feature], featureDf: pd.DataFrame
 
 def generate_volume_features(columns: List[Feature], featureDf: pd.DataFrame, perp: pd.DataFrame, spot: pd.DataFrame):
     if Feature.VOLUME_RATIO in columns:
-        featureDf[Feature.VOLUME_RATIO.value] = perp["volume"] / spot["volume"]
+        featureDf[Feature.VOLUME_RATIO] = perp["volume"] / spot["volume"]
     return featureDf
 
 '''
@@ -99,11 +102,11 @@ def generate_order_flow_features(columns: List[Feature], featureDf: pd.DataFrame
         ofi_z_accs.append(ofi_z_acc)
 
     if Feature.OFI_Z_RATIO in columns:
-        featureDf[Feature.OFI_Z_RATIO.value] = ofi_zs[0] / (ofi_zs[1] + 1e-8)
+        featureDf[Feature.OFI_Z_RATIO] = ofi_zs[0] / (ofi_zs[1] + 1e-8)
     if Feature.OFI_Z_DIFF_RATIO in columns:
-        featureDf[Feature.OFI_Z_DIFF_RATIO.value] = ofi_z_diffs[0] / (ofi_z_diffs[1] + 1e-8)
+        featureDf[Feature.OFI_Z_DIFF_RATIO] = ofi_z_diffs[0] / (ofi_z_diffs[1] + 1e-8)
     if Feature.OFI_Z_ACC_RATIO in columns:
-        featureDf[Feature.OFI_Z_ACC_RATIO.value] = ofi_z_accs[0] / (ofi_z_accs[1] + 1e-8)
+        featureDf[Feature.OFI_Z_ACC_RATIO] = ofi_z_accs[0] / (ofi_z_accs[1] + 1e-8)
     return featureDf
 
 '''
@@ -131,10 +134,16 @@ def generate_cointegration_features(columns: List[Feature], featureDf: pd.DataFr
     spread_z_acc = spread_z_diff.diff()
 
     if Feature.SPREAD_Z in columns:
-        featureDf["spread_z"] = spread_z
+        featureDf[Feature.SPREAD_Z] = spread_z
     if Feature.SPREAD_Z_DIFF in columns:
-        featureDf["spread_z_diff"] = spread_z_diff
+        featureDf[Feature.SPREAD_Z_DIFF] = spread_z_diff
     if Feature.SPREAD_Z_ACC in columns:
-        featureDf["spread_z_acc"] = spread_z_acc
+        featureDf[Feature.SPREAD_Z_ACC] = spread_z_acc
 
+    return featureDf
+
+def generate_returns(featureDf: pd.DataFrame, perp: pd.DataFrame, spot: pd.DataFrame, horizon: int):
+    basis = (perp["close"] - spot["close"]) / spot["close"] # basis is measured in percentage of spot
+    futureBasis = basis.shift(-horizon)
+    featureDf[Feature.RETURNS] = futureBasis - basis
     return featureDf
